@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Сапёр</title>
+</head>
+
+<body>
+    <div id="app">
+        <div v-if="(!youWon) && (!gameStarted)">
+            <label>Введите ширину поля</label>
+            <input type="number" v-model="fieldWidth">
+            <br>
+            <label>Введите высоту поля</label>
+            <input type="number" v-model="fieldHeight">
+            <br>
+            <label>Введите количество мин</label>
+            <input type="number" v-model="bombsCount">
+            <br>
+            <button @click.prevent="startGame">Играть</button>
+        </div>
+        <playground v-if="gameStarted" :width="fieldWidth" :height="fieldHeight" :bombs-count="bombsCount" @player-won="playerWon">
+        </playground>
+        <h1 v-if="youWon">You won!</h1>
+    </div>
+
+
+
+
+    <script src="https://unpkg.com/vue@next"></script>
+    <script id="field" type="text/x-template">
+        <div class="field">
+            <template v-for="(row, y) in field">
+                <template v-for="(cell,x) in row" :key="cell.id">
+                    <field-cell 
+                    v-if="!cell.isBomb"
+                    :x="x" 
+                    :y="y" 
+                    @cell-open="cellOpen" 
+                    @bomb-click="bombClick"
+                    :isBomb="cell.isBomb"
+                    :bombsNear="cell.bombsNear"
+                    :showBomb="false"></field-cell>
+
+                    <field-cell 
+                    v-if="cell.isBomb"
+                    :x="x" 
+                    :y="y" 
+                    @cell-open="cellOpen" 
+                    @bomb-click="bombClick"
+                    :isBomb="cell.isBomb"
+                    :bombsNear="cell.bombsNear"
+                    :showBomb="showBombs"></field-cell>
+                </template>
+            <br>
+            </template>
+        </div>
+    </script>
+    <script id="field-cell" type="text/x-template">
+        <div class="cell" :class="{open:isOpen, bomb:showBomb, flag:isFlag}" @click.left.once="openCell" @click.right.prevent="setFlag">
+            <p v-show="isOpen">{{bombsNear}}</p>
+        </div>
+    </script>
+    <script>
+        const fieldCell = {
+            props: {
+                x: Number,
+                y: Number,
+                isBomb: Boolean,
+                bombsNear: Number,
+                showBomb: Boolean,
+            },
+            data() {
+                return {
+                    isFlag: false,
+                    isOpen: false,
+                }
+            },
+            methods: {
+                openCell() {
+                    if (this.isFlag) {
+                        return;
+                    };
+                    if (!this.isBomb) {
+                        this.isOpen = true;
+                        this.$emit("cell-open", {
+                            'x': this.x,
+                            'y': this.y,
+                        })
+                    } else {
+                        this.showBomb = true;
+                        this.$emit('bomb-click', {
+                            'x': this.x,
+                            'y': this.y,
+                        });
+                    }
+                },
+                setFlag() {
+                    if (!this.isOpen) {
+                        this.isFlag = !this.isFlag;
+                    }
+
+                },
+            },
+            template: "#field-cell",
+        };
+        const fieldComponent = {
+            components: {
+                "field-cell": fieldCell,
+            },
+            props: {
+                width: Number,
+                height: Number,
+                bombsCount: Number,
+            },
+            data() {
+                return {
+                    showBombs: false,
+                    freeFields: null,
+                    field: [],
+                }
+            },
+            methods: {
+                createField() {
+                    let id = 0;
+                    for (let h = 0; h < this.height; h++) {
+                        this.field[h] = [];
+                        for (let w = 0; w < this.width; w++) {
+                            this.field[h].push({
+                                id: id,
+                                isOpen: false,
+                                isBomb: false,
+                                bombsNear: 0,
+                            });
+                            id++;
+                        }
+                    }
+                },
+                getRandomInt(max) {
+                    return Math.floor(Math.random() * max);
+                },
+                calcBombsNear(x, y) {
+                    //верхний левый угол
+                    if (((x - 1) >= 0) && ((y - 1) >= 0)) {
+                        this.field[x - 1][y - 1].bombsNear++;
+                    }
+                    //верхний правый угол
+                    if (((x + 1) < this.height) && ((y - 1) >= 0)) {
+                        this.field[x + 1][y - 1].bombsNear++;
+                    }
+                    //верхний кубик
+                    if (((y - 1) >= 0)) {
+                        this.field[x][y - 1].bombsNear++;
+                    }
+
+                    //нижний левый угол
+                    if (((x - 1) >= 0) && ((y + 1) < this.width)) {
+                        console.log("Проверяю на x-1:" + (x - 1) + " и y+1:" + (y + 1));
+                        this.field[x - 1][y + 1].bombsNear++;
+                    }
+                    //нижний правый угол
+                    if (((x + 1) < this.height) && ((y + 1) < this.width)) {
+                        this.field[x + 1][y + 1].bombsNear++;
+                    }
+                    //нижний кубик
+                    if (((y + 1) < this.width)) {
+                        this.field[x][y + 1].bombsNear++;
+                    }
+                    //Слева
+                    if (((x - 1) >= 0)) {
+                        this.field[x - 1][y].bombsNear++;
+                    }
+                    //Справа
+                    if (((x + 1) < this.height)) {
+                        this.field[x + 1][y].bombsNear++;
+                    }
+                },
+                setBombs() {
+                    for (let i = 0; i < this.bombsCount; i++) {
+                        let randomY = this.getRandomInt(this.height);
+                        let randomX = this.getRandomInt(this.width);
+                        while (this.field[randomY][randomX].isBomb) {
+                            randomY = this.getRandomInt(this.height);
+                            randomX = this.getRandomInt(this.width);
+                        }
+                        this.field[randomY][randomX].isBomb = true;
+                        this.calcBombsNear(randomY, randomX);
+                    }
+                },
+                cellOpen(coords) {
+                    this.freeFields--;
+                },
+                bombClick(coords) {
+                    this.showBombs = true;
+                    alert('Game over!');
+                }
+            },
+            watch: {
+                freeFields(newVal, oldVal) {
+                    if (newVal == 0) {
+                        this.$emit("player-won");
+                    }
+                }
+            },
+            created() {
+                this.createField();
+                this.setBombs(2);
+                this.freeFields = this.width * this.height - this.bombsCount;
+            },
+            template: "#field"
+        };
+
+        const app = Vue.createApp({
+            components: {
+                'playground': fieldComponent,
+                'field-cell': fieldCell,
+            },
+            data() {
+                return {
+                    gameStarted: false,
+                    fieldWidth: 5,
+                    fieldHeight: 5,
+                    bombsCount: 5,
+                    youWon: false,
+                }
+            },
+            methods: {
+                startGame() {
+                    this.gameStarted = true;
+                },
+                playerWon() {
+                    this.youWon = true;
+                    this.gameStarted = false;
+                }
+            }
+        });
+        app.mount("#app");
+    </script>
+</body>
+
+</html>

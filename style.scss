@@ -1,0 +1,42 @@
+* {
+    margin: 0;
+    padding: 0;
+}
+
+.row {
+    //display:flex;
+    max-width: 70vw;
+    margin: 0 auto;
+    flex-direction: row;
+}
+
+.bomb {
+    background-color: red !important;
+}
+
+.cell__inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.open {
+    border-color: black !important;
+    background-color: beige !important;
+}
+
+.flag {
+    background-color: yellow !important;
+}
+
+.cell {
+    display: inline-block;
+    position: relative;
+    background-color: gray;
+    width: 30px;
+    height: 30px;
+    border: white 4px solid;
+    p {
+        position: absolute;
+    }
+}
