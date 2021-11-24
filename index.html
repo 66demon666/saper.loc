@@ -23,7 +23,7 @@
             <br>
             <button @click.prevent="startGame">Играть</button>
         </div>
-        <playground v-if="gameStarted" :width="fieldWidth" :height="fieldHeight" :bombs-count="bombsCount" @player-won="playerWon">
+        <playground v-if="gameStarted" :width="fieldWidth" :height="fieldHeight" :bombs-count="bombsCount" :game-over="!actions" @player-won="playerWon" @game-over="gameOver">
         </playground>
         <h1 v-if="youWon">You won!</h1>
     </div>
@@ -40,28 +40,30 @@
                     v-if="!cell.isBomb"
                     :x="x" 
                     :y="y" 
-                    @cell-open="cellOpen" 
+                    @cell-open="cellClick" 
                     @bomb-click="bombClick"
                     :isBomb="cell.isBomb"
                     :bombsNear="cell.bombsNear"
-                    :showBomb="false"></field-cell>
+                    :showBomb="false"
+                    :isOpen="cell.isOpen"></field-cell>
 
                     <field-cell 
                     v-if="cell.isBomb"
                     :x="x" 
                     :y="y" 
-                    @cell-open="cellOpen" 
+                    @cell-open="cellClick" 
                     @bomb-click="bombClick"
                     :isBomb="cell.isBomb"
-                    :bombsNear="cell.bombsNear"
-                    :showBomb="showBombs"></field-cell>
+                    :bombsNear="-10"
+                    :showBomb="showBombs"
+                    :isOpen="cell.isOpen"></field-cell>
                 </template>
             <br>
             </template>
         </div>
     </script>
     <script id="field-cell" type="text/x-template">
-        <div class="cell" :class="{open:isOpen, bomb:showBomb, flag:isFlag}" @click.left.once="openCell" @click.right.prevent="setFlag">
+        <div class="cell" :class="{open:isOpen, bomb:showBomb, flag:isFlag}" @click.left="openCell" @click.right.prevent="setFlag">
             <p v-show="isOpen">{{bombsNear}}</p>
         </div>
     </script>
@@ -73,31 +75,33 @@
                 isBomb: Boolean,
                 bombsNear: Number,
                 showBomb: Boolean,
+                isOpen: Boolean,
             },
             data() {
                 return {
                     isFlag: false,
-                    isOpen: false,
+                    
                 }
             },
             methods: {
                 openCell() {
-                    if (this.isFlag) {
-                        return;
-                    };
+                    if (!this.isFlag) {
                     if (!this.isBomb) {
-                        this.isOpen = true;
                         this.$emit("cell-open", {
                             'x': this.x,
                             'y': this.y,
                         })
                     } else {
-                        this.showBomb = true;
-                        this.$emit('bomb-click', {
+                        if (!this.isOpen) {
+                            this.$emit('bomb-click', {
                             'x': this.x,
                             'y': this.y,
                         });
+                        }
+                        //this.showBomb = true;
+
                     }
+                }
                 },
                 setFlag() {
                     if (!this.isOpen) {
@@ -116,15 +120,17 @@
                 width: Number,
                 height: Number,
                 bombsCount: Number,
+                gameOver:Boolean,
             },
             data() {
                 return {
                     showBombs: false,
-                    freeFields: null,
+                    freeCells: null,
                     field: [],
                 }
             },
             methods: {
+                //Заполняем матрицу игрового поля
                 createField() {
                     let id = 0;
                     for (let h = 0; h < this.height; h++) {
@@ -140,9 +146,84 @@
                         }
                     }
                 },
+                //Генерирует рандомную координату
                 getRandomInt(max) {
                     return Math.floor(Math.random() * max);
                 },
+                fillEmptyCells(x, y) {
+                    console.log("fill " +y+"," + x);
+                    //верхний левый угол
+                    if (!this.field[x][y].isOpen && this.field[x][y].bombsNear == 0) {
+                        this.field[x][y].isOpen = true;
+                        this.freeCells--;
+                    }
+
+                    if (((x - 1) >= 0) && ((y - 1) >= 0)) {
+                        if ((this.field[x-1][y-1].bombsNear == 0) && (!this.field[x-1][y-1].isOpen)) {
+                            this.field[x-1][y-1].isOpen = true;
+                            this.fillEmptyCells(x-1,y-1);
+                            this.freeCells--;
+                        }
+                    }
+                    //верхний правый угол
+                    if (((x + 1) < this.height) && ((y - 1) >= 0)) {
+                         if ((this.field[x+1][y-1].bombsNear == 0) && (!this.field[x+1][y-1].isOpen)) { 
+                            this.field[x+1][y-1].isOpen = true;
+                            this.fillEmptyCells(x+1,y-1);
+                            this.freeCells--;
+                        }
+                    }
+                    //верхний кубик
+                    if (((y - 1) >= 0)) {
+                        if ((this.field[x][y-1].bombsNear == 0) && (!this.field[x][y-1].isOpen)) {
+                            this.field[x][y-1].isOpen = true;
+                            this.fillEmptyCells(x,y-1);
+                            this.freeCells--;
+                        }
+                    }
+
+                    //нижний левый угол
+                    if (((x - 1) >= 0) && ((y + 1) < this.width)) {
+                        if ((this.field[x-1][y+1].bombsNear == 0) && (!this.field[x-1][y+1].isOpen)) {
+                            this.field[x-1][y+1].isOpen = true;
+                            this.fillEmptyCells(x-1,y+1);
+                            this.freeCells--;
+                        }
+                    }
+                    //нижний правый угол
+                    if (((x + 1) < this.height) && ((y + 1) < this.width)) {
+                        if ((this.field[x+1][y+1].bombsNear == 0) && (!this.field[x+1][y+1].isOpen)) {
+                            this.field[x+1][y+1].isOpen = true;
+                            this.fillEmptyCells(x+1,y+1);
+                            this.freeCells--;
+                        }
+                    }
+                    //нижний кубик
+                    if (((y + 1) < this.width)) {
+                        if ((this.field[x][y+1].bombsNear == 0) && (!this.field[x][y+1].isOpen)) {
+                            this.field[x][y+1].isOpen = true;
+                            this.fillEmptyCells(x,y+1);
+                            this.freeCells--;
+                        }
+                    }
+                    //Слева
+                    if (((x - 1) >= 0)) {
+                        if ((this.field[x-1][y].bombsNear == 0) && (!this.field[x-1][y].isOpen)) {
+                            this.field[x-1][y].isOpen = true;
+                            this.fillEmptyCells(x-1,y);
+                            this.freeCells--;
+                        }
+                    }
+                    //Справа
+                    if (((x + 1) < this.height)) {
+                        if ((this.field[x+1][y].bombsNear == 0) && (!this.field[x+1][y].isOpen)) {
+                            this.field[x+1][y].isOpen = true;
+                            this.fillEmptyCells(x+1,y);
+                            this.freeCells--;
+                        }
+                    }
+                },
+                //Проставление соседним с бомбой клеткам значений
                 calcBombsNear(x, y) {
                     //верхний левый угол
                     if (((x - 1) >= 0) && ((y - 1) >= 0)) {
@@ -159,7 +240,6 @@
 
                     //нижний левый угол
                     if (((x - 1) >= 0) && ((y + 1) < this.width)) {
-                        console.log("Проверяю на x-1:" + (x - 1) + " и y+1:" + (y + 1));
                         this.field[x - 1][y + 1].bombsNear++;
                     }
                     //нижний правый угол
@@ -179,6 +259,7 @@
                         this.field[x + 1][y].bombsNear++;
                     }
                 },
+                //Расставляем бомбы в случайном порядке
                 setBombs() {
                     for (let i = 0; i < this.bombsCount; i++) {
                         let randomY = this.getRandomInt(this.height);
@@ -191,16 +272,31 @@
                         this.calcBombsNear(randomY, randomX);
                     }
                 },
-                cellOpen(coords) {
-                    this.freeFields--;
+                //По простой клетке кликнули
+                cellClick(coords) {
+                    if (this.gameOver) {
+                        return;
+                    }
+                    if ((this.field[coords.y][coords.x].bombsNear == 0) && (!this.field[coords.y][coords.x].isOpen)) {
+                        this.fillEmptyCells(coords.y, coords.x);
+                    }
+                    else {
+                        if (!this.field[coords.y][coords.x].isOpen) {
+                            this.field[coords.y][coords.x].isOpen = true;
+                            this.freeCells--;
+                        }
+                    }
+
                 },
+                //Кликнули по бомбе
                 bombClick(coords) {
                     this.showBombs = true;
-                    alert('Game over!');
+                    this.$emit("game-over");
                 }
             },
             watch: {
-                freeFields(newVal, oldVal) {
+                //Когда свободные клетки кончились - игрок победил
+                freeCells(newVal, oldVal) {
                     if (newVal == 0) {
                         this.$emit("player-won");
                     }
@@ -209,7 +305,7 @@
             created() {
                 this.createField();
                 this.setBombs(2);
-                this.freeFields = this.width * this.height - this.bombsCount;
+                this.freeCells = this.width * this.height - this.bombsCount;
             },
             template: "#field"
         };
@@ -217,7 +313,6 @@
         const app = Vue.createApp({
             components: {
                 'playground': fieldComponent,
-                'field-cell': fieldCell,
             },
             data() {
                 return {
@@ -226,16 +321,29 @@
                     fieldHeight: 5,
                     bombsCount: 5,
                     youWon: false,
+                    actions:true,
                 }
             },
             methods: {
                 startGame() {
+                    if (this.fieldWidth>50 || this.fieldHeight>50) {
+                        alert('Размеры поля не должны превышать 50 клеток');
+                        return;
+                    }
+                    if (this.bombsCount >= (this.fieldWidth * this.fieldHeight)) {
+                        alert("Столько бомб не влезет на поле");
+                        return;
+                    }
                     this.gameStarted = true;
                 },
                 playerWon() {
                     this.youWon = true;
                     this.gameStarted = false;
-                }
+                },
+                gameOver() {
+                    alert("War is over for u");
+                    this.actions = false;
+                },
             }
         });
         app.mount("#app");
